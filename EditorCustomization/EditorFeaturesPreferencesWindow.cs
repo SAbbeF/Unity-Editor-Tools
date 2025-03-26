@@ -6,6 +6,7 @@ public class EditorFeaturesPreferencesWindow : EditorWindow
     // Preference keys
     private const string PREF_HIERARCHY_ACTIVATION = "HierarchyIconActivation_Enabled";
     private const string PREF_HIERARCHY_ICON_DISPLAY = "HierarchyIconDisplay_Enabled";
+    private const string PREF_HIERARCHY_ICON_DISPLAY_PREFAB = "HierarchyIconDisplay_PrefabEnabled";
 
     // Feature descriptions
     private static readonly FeatureInfo[] features = new FeatureInfo[]
@@ -25,6 +26,13 @@ public class EditorFeaturesPreferencesWindow : EditorWindow
             Description = "Displays an icon in the Hierarchy window representing the first (or second) non-Transform component " +
                           "of each GameObject. This provides a quick visual reference for the types of components attached to " +
                           "each object in your scene."
+        },
+        new FeatureInfo
+        {
+            Name = "Hierarchy Prefab Icon Display",
+            PrefKey = PREF_HIERARCHY_ICON_DISPLAY_PREFAB,
+            Description = "Enables component icons for Prefab instances in the Hierarchy window. When disabled, icons will not " +
+                          "be shown for prefab objects."
         }
     };
 
@@ -36,7 +44,7 @@ public class EditorFeaturesPreferencesWindow : EditorWindow
         public string Description;
     }
 
-    [MenuItem("Tools/Editor Features Preferences")]
+    [MenuItem("Tools/Editor Customization Tools")]
     public static void ShowWindow()
     {
         GetWindow<EditorFeaturesPreferencesWindow>("Editor Features");
