@@ -1,250 +1,366 @@
 using System.IO;
 using System.Linq;
 using UnityEngine;
-using UnityEngine.UIElements;
-using UnityEngine.SceneManagement;
 using UnityEditor;
 using UnityEditor.Overlays;
 using UnityEditor.Toolbars;
 using UnityEditor.SceneManagement;
+using UnityEngine.SceneManagement;
+using System.Collections.Generic;
 
-[Overlay(typeof(SceneView), "Scene Selection")]
-[Icon("BuildSettings.Editor")]
-public class SceneSelectionOverlay : ToolbarOverlay
+namespace OptionalTools.Editor
 {
-    public SceneSelectionOverlay() : base(SceneDropdownToggle.Id, DefaultStartSceneToggle.Id) { }
-
-    [EditorToolbarElement(Id, typeof(SceneView))]
-    class SceneDropdownToggle : EditorToolbarDropdownToggle, IAccessContainerWindow
+    [Overlay(typeof(SceneView), "Scene Selection")]
+    [Icon("BuildSettings.Editor")]
+    public class SceneSelectionOverlay : ToolbarOverlay
     {
-        public const string Id = "SceneSelectionOverlay/SceneDropdownToggle";
-        public EditorWindow containerWindow { get; set; }
+        public SceneSelectionOverlay() : base(SceneDropdownToggle.Id, DefaultStartSceneToggle.Id) { }
 
-        SceneDropdownToggle()
+        [EditorToolbarElement(Id, typeof(SceneView))]
+        class SceneDropdownToggle : EditorToolbarDropdown, IAccessContainerWindow
         {
-            text = "Scenes";
-            tooltip = "Select a scene to load";
-            icon = EditorGUIUtility.FindTexture("BuildSettings.Editor");
-            dropdownClicked += ShowSceneMenu;
-        }
+            public const string Id = "SceneSelectionOverlay/SceneDropdownToggle";
+            public EditorWindow containerWindow { get; set; }
 
-        private void ShowSceneMenu()
-        {
-            // Retrieve all scene paths with filtering
-            string[] sceneGuids = AssetDatabase.FindAssets("t:scene", new[] { "Assets" });
-
-            // Filter and process scene paths
-            var validScenes = sceneGuids
-                .Select(guid => AssetDatabase.GUIDToAssetPath(guid))
-                .Where(IsValidScene)
-                .ToArray();
-
-            string[] scenePaths = validScenes.ToArray();
-            string[] sceneNames = scenePaths
-                .Select(path => Path.GetFileNameWithoutExtension(path))
-                .ToArray();
-
-            // Sort scenes alphabetically
-            System.Array.Sort(sceneNames, scenePaths);
-
-            // Create custom scene selection popup
-            ShowSceneSelectionPopup(scenePaths, sceneNames);
-        }
-
-        // Validate scene for selection
-        private bool IsValidScene(string scenePath)
-        {
-            // Exclude scenes in read-only packages or with specific prefixes
-            if (scenePath.Contains("/Packages/") ||
-                scenePath.Contains("/PackageCache/") ||
-                Path.GetFileNameWithoutExtension(scenePath).StartsWith("_") ||
-                Path.GetFileNameWithoutExtension(scenePath).Contains("SerializationTests") ||
-                Path.GetFileNameWithoutExtension(scenePath).Contains("Template"))
+            SceneDropdownToggle()
             {
-                return false;
+                text = "Scenes";
+                tooltip = "Select a scene to load";
+                icon = EditorGUIUtility.FindTexture("BuildSettings.Editor");
+                clicked += ShowSceneMenu;
             }
 
-            return true;
-        }
-
-        public static void ShowSceneSelectionPopup(string[] scenePaths, string[] sceneNames)
-        {
-            SceneSelectionPopup window = ScriptableObject.CreateInstance<SceneSelectionPopup>();
-            window._originalScenePaths = scenePaths;
-            window._originalSceneNames = sceneNames;
-            window._currentScenePaths = scenePaths;
-            window._currentSceneNames = sceneNames;
-
-            // Create the popup window
-            window.ShowAsDropDown(
-                new Rect(Event.current.mousePosition.x, Event.current.mousePosition.y, 300, 0),
-                new Vector2(300, 350)
-            );
-        }
-    }
-
-    [EditorToolbarElement(Id, typeof(SceneView))]
-    class DefaultStartSceneToggle : EditorToolbarToggle, IAccessContainerWindow
-    {
-        public const string Id = "SceneSelectionOverlay/DefaultStartSceneToggle";
-        public EditorWindow containerWindow { get; set; }
-
-        DefaultStartSceneToggle()
-        {
-            text = "Start Scene";
-            tooltip = "Enable/Disable Default Starting Scene";
-            icon = EditorGUIUtility.FindTexture("PlayButton");
-
-            // Setup change handler
-            this.RegisterValueChangedCallback(evt => OnToggleChanged(evt.newValue));
-        }
-
-        private void OnToggleChanged(bool newValue)
-        {
-            // If disabled, clear the start scene
-            if (!newValue)
+            private void ShowSceneMenu()
             {
-                EditorSceneManager.playModeStartScene = null;
-            }
-            else
-            {
-                // Open scene selection if enabling
-                ShowStartSceneSelection();
-            }
-        }
+                string[] sceneGuids = AssetDatabase.FindAssets("t:scene", new[] { "Assets" });
 
-        private void ShowStartSceneSelection()
-        {
-            // Retrieve all scene paths with filtering
-            string[] sceneGuids = AssetDatabase.FindAssets("t:scene", new[] { "Assets" });
+                string[] validScenes = sceneGuids
+                    .Select(guid => AssetDatabase.GUIDToAssetPath(guid))
+                    .Where(IsValidScene)
+                    .ToArray();
 
-            // Filter and process scene paths
-            var validScenes = sceneGuids
-                .Select(guid => AssetDatabase.GUIDToAssetPath(guid))
-                .Where(scenePath =>
-                    !scenePath.Contains("/Packages/") &&
-                    !scenePath.Contains("/PackageCache/") &&
-                    !Path.GetFileNameWithoutExtension(scenePath).StartsWith("_") &&
-                    !Path.GetFileNameWithoutExtension(scenePath).Contains("SerializationTests") &&
-                    !Path.GetFileNameWithoutExtension(scenePath).Contains("Template"))
-                .ToArray();
+                string[] scenePaths = validScenes;
+                string[] sceneNames = scenePaths
+                    .Select(path => Path.GetFileNameWithoutExtension(path))
+                    .ToArray();
 
-            string[] scenePaths = validScenes.ToArray();
-            string[] sceneNames = scenePaths
-                .Select(path => Path.GetFileNameWithoutExtension(path))
-                .ToArray();
+                System.Array.Sort(sceneNames, scenePaths);
 
-            // Sort scenes alphabetically
-            System.Array.Sort(sceneNames, scenePaths);
-
-            // Create a popup to select the start scene
-            SceneDropdownToggle.ShowSceneSelectionPopup(scenePaths, sceneNames);
-        }
-    }
-
-    // Popup for selecting scenes
-    class SceneSelectionPopup : EditorWindow
-    {
-        internal string[] _originalScenePaths;
-        internal string[] _originalSceneNames;
-        internal string[] _currentScenePaths;
-        internal string[] _currentSceneNames;
-        private Vector2 _scrollPosition;
-        private string _searchText = "";
-
-        private void OnGUI()
-        {
-            // Search bar
-            EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
-
-            // Search text field
-            EditorGUI.BeginChangeCheck();
-            _searchText = EditorGUILayout.TextField(_searchText, EditorStyles.toolbarSearchField);
-            if (EditorGUI.EndChangeCheck())
-            {
-                // Filter scenes based on search text
-                FilterScenes();
+                ShowSceneSelectionWindow(scenePaths, sceneNames, false);
             }
 
-            EditorGUILayout.EndHorizontal();
-
-            // Scenes list
-            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-            _scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition, GUILayout.Width(290), GUILayout.Height(280));
-
-            Scene currentScene = EditorSceneManager.GetActiveScene();
-            SceneAsset currentStartScene = EditorSceneManager.playModeStartScene;
-
-            for (int i = 0; i < _currentSceneNames.Length; i++)
+            private bool IsValidScene(string scenePath)
             {
-                bool isCurrentScene = currentScene.name == _currentSceneNames[i];
-                bool isCurrentStartScene = currentStartScene != null && currentStartScene.name == _currentSceneNames[i];
-
-                EditorGUI.BeginDisabledGroup(isCurrentScene || isCurrentStartScene);
-
-                GUIStyle buttonStyle = new GUIStyle(GUI.skin.button);
-                buttonStyle.alignment = TextAnchor.MiddleLeft;
-
-                if (GUILayout.Button(_currentSceneNames[i], buttonStyle, GUILayout.Width(270)))
+                if (scenePath.Contains("/Packages/") ||
+                    scenePath.Contains("/PackageCache/") ||
+                    Path.GetFileNameWithoutExtension(scenePath).StartsWith("_") ||
+                    Path.GetFileNameWithoutExtension(scenePath).Contains("SerializationTests") ||
+                    Path.GetFileNameWithoutExtension(scenePath).Contains("Template"))
                 {
-                    // Determine the context of the popup
-                    bool isStartScenePopup = currentStartScene == null;
+                    return false;
+                }
 
-                    if (!isStartScenePopup)
+                return true;
+            }
+
+            public static void ShowSceneSelectionWindow(string[] scenePaths, string[] sceneNames, bool isStartSceneMode)
+            {
+                if (scenePaths == null || sceneNames == null)
+                {
+                    Debug.LogError("Scene paths or names are null!");
+                    return;
+                }
+
+                SceneSelectionWindow window = EditorWindow.GetWindow<SceneSelectionWindow>(true,
+                    isStartSceneMode ? "Select Start Scene" : "Select Scene");
+                window._originalScenePaths = scenePaths;
+                window._originalSceneNames = sceneNames;
+                window._currentScenePaths = scenePaths;
+                window._currentSceneNames = sceneNames;
+                window._isStartSceneMode = isStartSceneMode;
+
+                window.minSize = new Vector2(300, 350);
+                window.maxSize = new Vector2(800, 600);
+                window.Show();
+                window.Focus();
+            }
+        }
+
+        [EditorToolbarElement(Id, typeof(SceneView))]
+        class DefaultStartSceneToggle : EditorToolbarButton, IAccessContainerWindow
+        {
+            public const string Id = "SceneSelectionOverlay/DefaultStartSceneToggle";
+            public EditorWindow containerWindow { get; set; }
+
+            private bool _hasStartScene = false;
+            public static event System.Action OnStartSceneChanged;
+
+            SceneAsset _currentStartScene;
+
+            DefaultStartSceneToggle()
+            {
+                UpdateButtonContent();
+                clicked += OnButtonClicked;
+                EditorApplication.playModeStateChanged += _ => UpdateButtonContent();
+                OnStartSceneChanged += UpdateButtonContent;
+                EditorApplication.update += CheckForStartSceneChanges;
+            }
+
+            private void CheckForStartSceneChanges()
+            {
+                SceneAsset startScene = EditorSceneManager.playModeStartScene;
+                if ((_currentStartScene == null && startScene != null) ||
+                    (_currentStartScene != null && startScene == null) ||
+                    (_currentStartScene != null && startScene != null && _currentStartScene.name != startScene.name))
+                {
+                    _currentStartScene = startScene;
+                    UpdateButtonContent();
+                }
+            }
+
+            public void UpdateButtonContent()
+            {
+                SceneAsset startScene = EditorSceneManager.playModeStartScene;
+                _currentStartScene = startScene;
+                _hasStartScene = startScene != null;
+
+                if (_hasStartScene)
+                {
+                    text = $"Start: {startScene.name}";
+                    tooltip = $"Default Starting Scene: {startScene.name}";
+                }
+                else
+                {
+                    text = "Set Start Scene";
+                    tooltip = "Set Default Starting Scene";
+                }
+
+                icon = EditorGUIUtility.FindTexture("PlayButton");
+
+                containerWindow?.Repaint();
+            }
+
+            private void OnButtonClicked()
+            {
+                GenericMenu menu = new GenericMenu();
+                menu.AddItem(new GUIContent("Set Start Scene..."), false, () => {
+                    EditorApplication.delayCall += ShowStartSceneSelection;
+                });
+
+                if (_hasStartScene)
+                {
+                    menu.AddItem(new GUIContent("Clear Start Scene"), false, () => {
+                        EditorSceneManager.playModeStartScene = null;
+                        UpdateButtonContent();
+                        BroadcastStartSceneChange();
+                    });
+                }
+                else
+                {
+                    menu.AddDisabledItem(new GUIContent("Clear Start Scene"));
+                }
+
+                menu.ShowAsContext();
+            }
+
+            public static void BroadcastStartSceneChange()
+            {
+                OnStartSceneChanged?.Invoke();
+            }
+
+            private void ShowStartSceneSelection()
+            {
+                try
+                {
+                    string[] sceneGuids = AssetDatabase.FindAssets("t:scene", new[] { "Assets" });
+                    if (sceneGuids == null || sceneGuids.Length == 0)
                     {
-                        // Open scene for SceneDropdownToggle
-                        OpenSceneWithSaveCheck(currentScene, _currentScenePaths[i]);
+                        Debug.LogWarning("No scenes found in Assets folder");
+                        return;
+                    }
+
+                    string[] validScenes = sceneGuids
+                        .Select(guid => AssetDatabase.GUIDToAssetPath(guid))
+                        .Where(scenePath =>
+                            !string.IsNullOrEmpty(scenePath) &&
+                            !scenePath.Contains("/Packages/") &&
+                            !scenePath.Contains("/PackageCache/") &&
+                            !Path.GetFileNameWithoutExtension(scenePath).StartsWith("_") &&
+                            !Path.GetFileNameWithoutExtension(scenePath).Contains("SerializationTests") &&
+                            !Path.GetFileNameWithoutExtension(scenePath).Contains("Template"))
+                        .ToArray();
+
+                    if (validScenes.Length == 0)
+                    {
+                        Debug.LogWarning("No valid scenes found after filtering");
+                        return;
+                    }
+
+                    string[] scenePaths = validScenes;
+                    string[] sceneNames = scenePaths.Select(path => Path.GetFileNameWithoutExtension(path)).ToArray();
+                    System.Array.Sort(sceneNames, scenePaths);
+
+                    EditorApplication.delayCall += () => {
+                        SceneDropdownToggle.ShowSceneSelectionWindow(scenePaths, sceneNames, true);
+                    };
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogError($"Error in ShowStartSceneSelection: {e.Message}\n{e.StackTrace}");
+                }
+            }
+        }
+
+        class SceneSelectionWindow : EditorWindow
+        {
+            internal string[] _originalScenePaths;
+            internal string[] _originalSceneNames;
+            internal string[] _currentScenePaths;
+            internal string[] _currentSceneNames;
+            internal bool _isStartSceneMode = false;
+
+            private Vector2 _scrollPosition;
+            private string _searchText = "";
+            private Dictionary<string, bool> _folderFoldouts = new Dictionary<string, bool>();
+
+            private void OnEnable()
+            {
+                titleContent = new GUIContent(_isStartSceneMode ? "Select Start Scene" : "Select Scene");
+            }
+
+            private void OnGUI()
+            {
+                if (_currentScenePaths == null || _currentSceneNames == null)
+                {
+                    EditorGUILayout.HelpBox("No scenes available.", MessageType.Warning);
+                    return;
+                }
+
+                EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
+                EditorGUILayout.LabelField(_isStartSceneMode ? "Select Start Scene" : "Open Scene", EditorStyles.boldLabel, GUILayout.Width(120));
+
+                EditorGUI.BeginChangeCheck();
+                _searchText = EditorGUILayout.TextField(_searchText, EditorStyles.toolbarSearchField);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    FilterScenes();
+                }
+                EditorGUILayout.EndHorizontal();
+
+                _scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition);
+                Scene currentScene = EditorSceneManager.GetActiveScene();
+                SceneAsset currentStartScene = EditorSceneManager.playModeStartScene;
+
+                if (!string.IsNullOrWhiteSpace(_searchText))
+                {
+                    for (int i = 0; i < _currentSceneNames.Length; i++)
+                    {
+                        DrawSceneButton(_currentSceneNames[i], _currentScenePaths[i], currentScene, currentStartScene);
+                    }
+                }
+                else
+                {
+                    Dictionary<string, List<(string Name, string Path)>> groupedScenes = GetGroupedScenes();
+                    foreach (KeyValuePair<string, List<(string Name, string Path)>> group in groupedScenes)
+                    {
+                        if (!_folderFoldouts.ContainsKey(group.Key))
+                            _folderFoldouts[group.Key] = group.Key == "Assets/Scenes";
+
+                        _folderFoldouts[group.Key] = EditorGUILayout.Foldout(_folderFoldouts[group.Key], group.Key, true);
+
+                        if (_folderFoldouts[group.Key])
+                        {
+                            foreach ((string Name, string Path) scene in group.Value)
+                            {
+                                DrawSceneButton(scene.Name, scene.Path, currentScene, currentStartScene);
+                            }
+                        }
+                    }
+                }
+
+                EditorGUILayout.EndScrollView();
+            }
+
+            private void DrawSceneButton(string sceneName, string scenePath, Scene currentScene, SceneAsset currentStartScene)
+            {
+                bool isCurrentScene = currentScene.name == sceneName;
+                bool isCurrentStartScene = currentStartScene != null && currentStartScene.name == sceneName;
+                bool disableButton = !_isStartSceneMode && isCurrentScene;
+
+                EditorGUI.BeginDisabledGroup(disableButton);
+
+                GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) { alignment = TextAnchor.MiddleLeft };
+                string buttonLabel = sceneName;
+                if (isCurrentScene && isCurrentStartScene) buttonLabel += " [Start Scene] (Currently Open)";
+                else if (isCurrentScene) buttonLabel += " (Currently Open)";
+                else if (isCurrentStartScene) buttonLabel += " [Start Scene]";
+
+                if (GUILayout.Button(buttonLabel, buttonStyle))
+                {
+                    if (_isStartSceneMode)
+                    {
+                        SceneAsset selectedScene = AssetDatabase.LoadAssetAtPath<SceneAsset>(scenePath);
+                        EditorSceneManager.playModeStartScene = selectedScene;
+                        DefaultStartSceneToggle.BroadcastStartSceneChange();
+                        SceneView.RepaintAll();
                     }
                     else
                     {
-                        // Set as start scene for DefaultStartSceneToggle
-                        SceneAsset selectedScene = AssetDatabase.LoadAssetAtPath<SceneAsset>(_currentScenePaths[i]);
-                        EditorSceneManager.playModeStartScene = selectedScene;
+                        OpenSceneWithSaveCheck(currentScene, scenePath);
                     }
 
-                    Close(); // Close the popup after selection
+                    Close();
                 }
 
                 EditorGUI.EndDisabledGroup();
             }
 
-            EditorGUILayout.EndScrollView();
-            EditorGUILayout.EndVertical();
-        }
-
-        // Static method to handle scene opening
-        private static void OpenSceneWithSaveCheck(Scene currentScene, string path)
-        {
-            if (currentScene.isDirty)
+            private static void OpenSceneWithSaveCheck(Scene currentScene, string path)
             {
-                if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                if (currentScene.isDirty)
+                {
+                    if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                        EditorSceneManager.OpenScene(path);
+                }
+                else
+                {
                     EditorSceneManager.OpenScene(path);
+                }
             }
-            else
-            {
-                EditorSceneManager.OpenScene(path);
-            }
-        }
 
-        private void FilterScenes()
-        {
-            if (string.IsNullOrWhiteSpace(_searchText))
+            private void FilterScenes()
             {
-                // If search is empty, show all scenes
-                _currentScenePaths = _originalScenePaths;
-                _currentSceneNames = _originalSceneNames;
-            }
-            else
-            {
-                // Filter scenes that contain the search text (case-insensitive)
-                var filteredScenes = _originalSceneNames
-                    .Select((name, index) => new { Name = name, Path = _originalScenePaths[index] })
-                    .Where(scene => scene.Name.IndexOf(_searchText, System.StringComparison.OrdinalIgnoreCase) >= 0)
-                    .ToArray();
+                if (string.IsNullOrWhiteSpace(_searchText))
+                {
+                    _currentScenePaths = _originalScenePaths;
+                    _currentSceneNames = _originalSceneNames;
+                }
+                else
+                {
+                    var filtered = _originalSceneNames
+                        .Select((name, index) => new { Name = name, Path = _originalScenePaths[index] })
+                        .Where(scene => scene.Name.IndexOf(_searchText, System.StringComparison.OrdinalIgnoreCase) >= 0)
+                        .OrderBy(scene => scene.Name)
+                        .ToList();
 
-                _currentSceneNames = filteredScenes.Select(s => s.Name).ToArray();
-                _currentScenePaths = filteredScenes.Select(s => s.Path).ToArray();
+                    _currentSceneNames = filtered.Select(s => s.Name).ToArray();
+                    _currentScenePaths = filtered.Select(s => s.Path).ToArray();
+                }
             }
+
+            private Dictionary<string, List<(string Name, string Path)>> GetGroupedScenes()
+            {
+                return _originalScenePaths
+                    .Select((path, index) => new { Path = path, Name = _originalSceneNames[index] })
+                    .GroupBy(s => Path.GetDirectoryName(s.Path).Replace("\\", "/"))
+                    .OrderByDescending(g => g.Key == "Assets/Scenes")
+                    .ThenBy(g => g.Key)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => g.OrderBy(s => s.Name).Select(s => (s.Name, s.Path)).ToList()
+                    );
+            }
+
         }
     }
 }
